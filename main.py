@@ -38,14 +38,15 @@ intents.message_content = True
 intents.guilds = True
 intents.guild_messages = True
 
-# Ensure application_id is set
-if not config.APPLICATION_ID:
-    raise ValueError(
-        "APPLICATION_ID is not set in Replit Secrets or config.py")
-
-bot = commands.Bot(command_prefix='!',
-                   intents=intents,
-                   application_id=config.APPLICATION_ID)
+# Initialize bot with application_id if available
+if config.APPLICATION_ID:
+    bot = commands.Bot(command_prefix='!',
+                       intents=intents,
+                       application_id=config.APPLICATION_ID)
+else:
+    logger.warning("APPLICATION_ID is not set. Some features may not work properly.")
+    bot = commands.Bot(command_prefix='!',
+                       intents=intents)
 
 
 # Load all commands from /commands folder
@@ -62,27 +63,33 @@ async def load_commands():
 @bot.event
 async def on_ready():
     try:
-        # Debug: Check if bot.tree is initialized
-        if bot.tree is None:
-            logger.error(
-                "ApplicationCommandTree is None; check APPLICATION_ID and BOT_TOKEN"
-            )
-            raise ValueError("Bot command tree is not initialized")
-
-        # Clear global commands before syncing
-        await bot.tree.clear_commands(guild=None)
-        # Sync commands globally
-        synced = await bot.tree.sync()
         logger.info(
             f"Logged in as {bot.user.name}#{bot.user.discriminator} | Connected to Discord!"
         )
-        logger.info(f"Synced {len(synced)} command(s) globally!")
+        
+        # Check if APPLICATION_ID is properly set
+        if not config.APPLICATION_ID:
+            logger.warning("APPLICATION_ID is not set or invalid. Command syncing will not work.")
+            logger.warning("Please set a valid APPLICATION_ID in your Replit Secrets.")
+        else:
+            # Debug: Check if bot.tree is initialized
+            if bot.tree is None:
+                logger.error(
+                    "ApplicationCommandTree is None; check APPLICATION_ID and BOT_TOKEN"
+                )
+                raise ValueError("Bot command tree is not initialized")
 
-        logger.info("Available commands:")
-        for command in bot.tree.get_commands():
-            logger.info(f"  /{command.name}")
+            # Clear global commands before syncing
+            await bot.tree.clear_commands(guild=None)
+            # Sync commands globally
+            synced = await bot.tree.sync()
+            logger.info(f"Synced {len(synced)} command(s) globally!")
 
-        # Start sales monitoring
+            logger.info("Available commands:")
+            for command in bot.tree.get_commands():
+                logger.info(f"  /{command.name}")
+
+        # Start sales monitoring - continue regardless of command syncing
         bot.loop.create_task(monitor_sales(bot))
     except Exception as e:
         logger.error(f"Failed to sync commands: {str(e)}")
