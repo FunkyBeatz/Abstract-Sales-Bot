@@ -38,15 +38,24 @@ intents.message_content = True
 intents.guilds = True
 intents.guild_messages = True
 
-# Initialize bot with application_id if available
-if config.APPLICATION_ID:
+# Ensure application_id is set and valid
+if not config.APPLICATION_ID or config.APPLICATION_ID == 0:
+    raise ValueError(
+        "APPLICATION_ID is missing or invalid in Replit Secrets or config.py")
+
+try:
+    application_id = int(config.APPLICATION_ID)  # Ensure it's an integer
+    logger.debug(f"Initializing bot with APPLICATION_ID: {application_id}")
+    logger.debug(f"BOT_TOKEN is set: {bool(config.BOT_TOKEN)}")
+    logger.debug(
+        f"Config values: BOT_TOKEN={config.BOT_TOKEN}, APPLICATION_ID={config.APPLICATION_ID}, GUILD_ID={config.GUILD_ID}"
+    )
     bot = commands.Bot(command_prefix='!',
                        intents=intents,
-                       application_id=config.APPLICATION_ID)
-else:
-    logger.warning("APPLICATION_ID is not set. Some features may not work properly.")
-    bot = commands.Bot(command_prefix='!',
-                       intents=intents)
+                       application_id=application_id)
+except ValueError as e:
+    logger.error(f"Invalid APPLICATION_ID: {str(e)}")
+    raise ValueError("APPLICATION_ID must be a valid integer") from e
 
 
 # Load all commands from /commands folder
@@ -63,40 +72,44 @@ async def load_commands():
 @bot.event
 async def on_ready():
     try:
+        # Debug: Check if bot.tree is initialized
+        if bot.tree is None:
+            logger.error(
+                f"ApplicationCommandTree is None; APPLICATION_ID={config.APPLICATION_ID}, BOT_TOKEN is set: {bool(config.BOT_TOKEN)}, bot.tree={bot.tree}"
+            )
+            logger.debug(f"Bot object: {bot}")
+            logger.debug(f"Bot intents: {bot.intents}")
+            logger.debug(f"Bot application_id: {bot.application_id}")
+            logger.debug(f"Bot user: {bot.user}")
+            logger.debug(
+                f"Config values in on_ready: BOT_TOKEN={config.BOT_TOKEN}, APPLICATION_ID={config.APPLICATION_ID}, GUILD_ID={config.GUILD_ID}"
+            )
+            raise ValueError(
+                "Bot command tree is not initialized; check APPLICATION_ID and BOT_TOKEN"
+            )
+
+        logger.info(f"Bot tree initialized: {bot.tree}")
+
+        # Clear global commands before syncing
+        logger.debug("Clearing global commands before sync")
+        await bot.tree.clear_commands(guild=None)
+        # Sync commands globally
+        logger.debug("Syncing commands globally")
+        synced = await bot.tree.sync()
         logger.info(
             f"Logged in as {bot.user.name}#{bot.user.discriminator} | Connected to Discord!"
         )
-        
-        # Check if APPLICATION_ID is properly set
-        if not config.APPLICATION_ID:
-            logger.warning("APPLICATION_ID is not set or invalid. Command syncing will not work.")
-            logger.warning("Please set a valid APPLICATION_ID in your Replit Secrets.")
-        else:
-            try:
-                # Debug: Check if bot.tree is initialized
-                if bot.tree is None:
-                    logger.error(
-                        "ApplicationCommandTree is None; check APPLICATION_ID and BOT_TOKEN"
-                    )
-                    raise ValueError("Bot command tree is not initialized")
+        logger.info(f"Synced {len(synced)} command(s) globally!")
 
-                # Clear global commands before syncing
-                await bot.tree.clear_commands(guild=None)
-                # Sync commands globally
-                synced = await bot.tree.sync()
-                logger.info(f"Synced {len(synced)} command(s) globally!")
+        logger.info("Available commands:")
+        for command in bot.tree.get_commands():
+            logger.info(f"  /{command.name}")
 
-                logger.info("Available commands:")
-                for command in bot.tree.get_commands():
-                    logger.info(f"  /{command.name}")
-            except Exception as sync_error:
-                logger.error(f"Failed to sync commands: {str(sync_error)}")
-                logger.warning("Bot will continue to run, but slash commands may not work.")
-
-        # Start sales monitoring - continue regardless of command syncing
+        # Start sales monitoring
+        logger.info("Starting sales monitoring for Abstract collections")
         bot.loop.create_task(monitor_sales(bot))
     except Exception as e:
-        logger.error(f"Error in on_ready: {str(e)}")
+        logger.error(f"Failed to sync commands: {str(e)}")
 
 
 @bot.tree.error
