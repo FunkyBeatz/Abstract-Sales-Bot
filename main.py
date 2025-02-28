@@ -38,12 +38,23 @@ async def load_commands():
 @bot.event
 async def on_ready():
     try:
-        guild = discord.Object(id=config.GUILD_ID)
-        bot.tree.copy_global_to(guild=guild)
-        synced = await bot.tree.sync(guild=guild)
+        if config.GUILD_ID:
+            guild = discord.Object(id=config.GUILD_ID)
+            # Clear existing guild commands before syncing new ones
+            await bot.tree.clear_commands(guild=guild)
+            bot.tree.copy_global_to(guild=guild)
+            synced = await bot.tree.sync(guild=guild)
+            logger.info(f"✅ Logged in as {bot.user}")
+            logger.info(
+                f"🔄 Synced {len(synced)} command(s) to guild {config.GUILD_ID}!"
+            )
+        else:
+            # Clear global commands before syncing (optional, use cautiously)
+            await bot.tree.clear_commands(guild=None)
+            synced = await bot.tree.sync()
+            logger.info(f"✅ Logged in as {bot.user}")
+            logger.info(f"🔄 Synced {len(synced)} command(s) globally!")
 
-        logger.info(f"✅ Logged in as {bot.user}")
-        logger.info(f"🔄 Synced {len(synced)} command(s)!")
         logger.info("📝 Available commands:")
         for command in bot.tree.get_commands():
             logger.info(f"  /{command.name}")
