@@ -6,10 +6,15 @@ import os
 import asyncio
 import logging
 
+# Set up logging to match main.py
+logging.basicConfig(filename='./data/logs/bot.log',
+                    level=logging.INFO,
+                    format='%(asctime)s %(levelname)s: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
+
 DATA_FILE = "./data/tracked_collections.json"
 lock = asyncio.Lock()  # Thread-safe file access
-
-logger = logging.getLogger(__name__)
 
 
 class StopSale(commands.Cog):
@@ -23,7 +28,12 @@ class StopSale(commands.Cog):
     @app_commands.checks.cooldown(1, 2.0)  # 1 use every 2 seconds
     async def stop_track(self, interaction: discord.Interaction,
                          collection_address: str):
-        """Command to stop tracking an Abstract NFT collection"""
+        """Command to stop tracking an Abstract NFT collection.
+
+        Args:
+            interaction: The Discord interaction triggering the command.
+            collection_address: The address of the Abstract NFT collection to stop tracking (e.g., '0x...').
+        """
         try:
             await interaction.response.defer(ephemeral=True)
 
@@ -31,7 +41,7 @@ class StopSale(commands.Cog):
             os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
 
             async with lock:  # Use lock for thread-safe JSON access
-                # Load or initialize tracked_collections
+                # Load or initialize tracked_collections with debugging
                 tracked_collections = {}
                 if os.path.exists(DATA_FILE):
                     try:
@@ -39,9 +49,15 @@ class StopSale(commands.Cog):
                             content = file.read().strip()
                             if content:  # Check if file has content
                                 tracked_collections = json.load(file)
+                                logger.info(
+                                    f"Loaded tracked_collections.json: {tracked_collections}"
+                                )
                             else:
                                 # File is empty, initialize with default structure
                                 tracked_collections = {"abstract": {}}
+                                logger.warning(
+                                    f"tracked_collections.json is empty, initializing with default structure"
+                                )
                     except json.JSONDecodeError as e:
                         logger.error(f"Invalid JSON in {DATA_FILE}: {e}")
                         # Initialize with default structure if JSON is corrupted
@@ -49,26 +65,38 @@ class StopSale(commands.Cog):
                 else:
                     # File doesn’t exist, initialize with default structure
                     tracked_collections = {"abstract": {}}
+                    logger.warning(
+                        f"tracked_collections.json does not exist, initializing with default structure"
+                    )
 
-                # Check if the collection is being tracked on Abstract
+                # Check if the collection is being tracked on Abstract (case-insensitive)
                 collection_address = collection_address.lower()
+                logger.debug(
+                    f"Checking for collection: {collection_address} in tracked_collections: {tracked_collections}"
+                )
                 if "abstract" in tracked_collections and collection_address in tracked_collections[
                         "abstract"]:
                     del tracked_collections["abstract"][collection_address]
 
-                    # Save updated data
+                    # Save updated data safely
                     with open(DATA_FILE, "w") as file:
                         json.dump(tracked_collections, file, indent=4)
+                    logger.info(
+                        f"Successfully stopped tracking collection {collection_address} on Abstract"
+                    )
 
                     await interaction.followup.send(
                         f"✅ Stopped tracking **{collection_address}** on Abstract.",
                         ephemeral=True)
                 else:
+                    logger.warning(
+                        f"Failed to stop tracking collection {collection_address}: Not found in tracked_collections: {tracked_collections}"
+                    )
                     await interaction.followup.send(
                         f"❌ Could not find tracking for **{collection_address}** on Abstract.",
                         ephemeral=True)
         except Exception as e:
-            print(f"Error in stop_track: {e}")
+            logger.error(f"Error in stop_track: {str(e)}")
             await interaction.followup.send(
                 "❌ An error occurred while processing the command.",
                 ephemeral=True)

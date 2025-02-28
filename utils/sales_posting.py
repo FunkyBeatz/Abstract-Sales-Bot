@@ -5,9 +5,11 @@ import json
 import os
 import logging
 
+# Set up logging to match main.py
 logging.basicConfig(filename='./data/logs/bot.log',
                     level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+                    format='%(asctime)s %(levelname)s: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
 DATA_FILE = "./data/tracked_collections.json"
@@ -16,6 +18,7 @@ DATA_FILE = "./data/tracked_collections.json"
 async def monitor_sales(bot):
     """Monitor NFT sales in real-time and post to Discord channels."""
     api = AbstractAPI()
+    logger.info("Starting sales monitoring for Abstract collections")
     await api.listen_for_sales()  # Start real-time WebSocket monitoring
 
     while True:
@@ -24,7 +27,7 @@ async def monitor_sales(bot):
             await api.fallback_poll_sales()
             await asyncio.sleep(60)  # Less frequent polling as backup
         except Exception as e:
-            logger.error(f"Error in monitor_sales: {e}")
+            logger.error(f"Error in monitor_sales: {str(e)}")
             await asyncio.sleep(10)  # Wait before retrying
 
 
@@ -33,7 +36,7 @@ async def post_sale_to_discord(collection, token_id, price, buyer, seller,
     """Post a sale to the specified Discord channel with a rich embed."""
     channel = bot.get_channel(channel_id)
     if not channel:
-        logger.error(f"❌ Channel {channel_id} not found")
+        logger.error(f"Channel {channel_id} not found")
         return
 
     embed = discord.Embed(title="🎉 Abstract NFT Sale Detected!",
@@ -72,7 +75,9 @@ async def post_sale_to_discord(collection, token_id, price, buyer, seller,
                      icon_url=bot.user.avatar.url if bot.user.avatar else None)
 
     await channel.send(embed=embed)
-    logger.info(f"✅ Sale notification sent to channel {channel_id}")
+    logger.info(
+        f"Sale notification sent to channel {channel_id} for collection {collection}, token {token_id}"
+    )
 
 
 async def fetch_collection_name(collection_address):
