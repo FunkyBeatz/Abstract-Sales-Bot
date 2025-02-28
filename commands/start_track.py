@@ -4,9 +4,12 @@ from discord.ext import commands
 import json
 import os
 import asyncio
+import logging
 
 DATA_FILE = "./data/tracked_collections.json"
 lock = asyncio.Lock()  # Thread-safe file access
+
+logger = logging.getLogger(__name__)
 
 
 class StartSale(commands.Cog):
