@@ -81,15 +81,25 @@ class TrackedCollections(commands.Cog):
                 embed = discord.Embed(title="Tracked Abstract NFT Collections",
                                       color=discord.Color.blue(),
                                       timestamp=discord.utils.utcnow())
-                embed.set_footer(
-                    text=
-                    f"Tracked by {self.bot.user.name} | *Metrics are placeholders; real data pending API.*",
-                    icon_url=self.bot.user.avatar.url
-                    if self.bot.user.avatar else None)
+                
+                # Safely access bot user properties
+                footer_text = "*Metrics are placeholders; real data pending API.*"
+                if self.bot and self.bot.user:
+                    footer_text = f"Tracked by {self.bot.user.name} | {footer_text}"
+                    icon_url = self.bot.user.avatar.url if self.bot.user.avatar else None
+                    embed.set_footer(text=footer_text, icon_url=icon_url)
+                else:
+                    embed.set_footer(text=footer_text)
 
                 for collection_address, data in abstract_collections.items():
-                    channel = self.bot.get_channel(data["channel_id"])
-                    channel_mention = channel.mention if channel else f"Channel ID {data['channel_id']} (not found)"
+                    channel_id = data.get("channel_id")
+                    channel = None
+                    
+                    # Only try to get channel if bot is properly initialized
+                    if self.bot and hasattr(self.bot, "get_channel") and channel_id:
+                        channel = self.bot.get_channel(channel_id)
+                        
+                    channel_mention = channel.mention if channel else f"Channel ID {channel_id} (not found)"
 
                     # Placeholder data (replace with real data if available later)
                     embed.add_field(
