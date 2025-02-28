@@ -121,4 +121,4 @@ class TrackedCollections(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(TrackedCollections(bot))
+    await bot.add_cog(TrackedCollections(bot))ot))
