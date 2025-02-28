@@ -2,7 +2,7 @@ from web3 import Web3
 import json
 import asyncio
 import os
-from web3.websocket import WebsocketProvider  # Updated import path for web3>=7.0.0
+from web3.providers.websocket import WebsocketProvider  # Updated import path for Web3.py
 import logging
 
 logging.basicConfig(filename='./data/logs/bot.log',
