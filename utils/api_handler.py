@@ -2,7 +2,7 @@ from web3 import Web3
 import json
 import asyncio
 import os
-from web3.websocket import WebsocketProvider  # Correct for web3>=7.0.0
+from web3.providers.websocket import WebsocketProvider  # Correct for web3==6.13.0
 import logging
 
 # Set up logging to match main.py
