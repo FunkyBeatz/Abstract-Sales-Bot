@@ -90,16 +90,35 @@ async def on_ready():
 
         logger.info(f"Bot tree initialized: {bot.tree}")
 
-        # Clear global commands before syncing
-        logger.debug("Clearing global commands before sync")
-        await bot.tree.clear_commands(guild=None)
-        # Sync commands globally
-        logger.debug("Syncing commands globally")
-        synced = await bot.tree.sync()
+        # Attempt to sync commands with retry logic
+        max_retries = 3
+        retry_delay = 5  # seconds
+        for attempt in range(max_retries):
+            try:
+                logger.debug(
+                    f"Attempting to clear global commands (attempt {attempt + 1}/{max_retries})"
+                )
+                await bot.tree.clear_commands(guild=None)
+                logger.debug(
+                    f"Attempting to sync commands globally (attempt {attempt + 1}/{max_retries})"
+                )
+                synced = await bot.tree.sync()
+                logger.info(f"Synced {len(synced)} command(s) globally!")
+                break
+            except Exception as e:
+                logger.error(
+                    f"Failed to sync commands (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    logger.info(
+                        f"Retrying command sync in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise
+
         logger.info(
             f"Logged in as {bot.user.name}#{bot.user.discriminator} | Connected to Discord!"
         )
-        logger.info(f"Synced {len(synced)} command(s) globally!")
 
         logger.info("Available commands:")
         for command in bot.tree.get_commands():
@@ -110,6 +129,8 @@ async def on_ready():
         bot.loop.create_task(monitor_sales(bot))
     except Exception as e:
         logger.error(f"Failed to sync commands: {str(e)}")
+        logger.warning(
+            "Bot will continue to run, but slash commands may not work.")
 
 
 @bot.tree.error
