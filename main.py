@@ -72,27 +72,31 @@ async def on_ready():
             logger.warning("APPLICATION_ID is not set or invalid. Command syncing will not work.")
             logger.warning("Please set a valid APPLICATION_ID in your Replit Secrets.")
         else:
-            # Debug: Check if bot.tree is initialized
-            if bot.tree is None:
-                logger.error(
-                    "ApplicationCommandTree is None; check APPLICATION_ID and BOT_TOKEN"
-                )
-                raise ValueError("Bot command tree is not initialized")
+            try:
+                # Debug: Check if bot.tree is initialized
+                if bot.tree is None:
+                    logger.error(
+                        "ApplicationCommandTree is None; check APPLICATION_ID and BOT_TOKEN"
+                    )
+                    raise ValueError("Bot command tree is not initialized")
 
-            # Clear global commands before syncing
-            await bot.tree.clear_commands(guild=None)
-            # Sync commands globally
-            synced = await bot.tree.sync()
-            logger.info(f"Synced {len(synced)} command(s) globally!")
+                # Clear global commands before syncing
+                await bot.tree.clear_commands(guild=None)
+                # Sync commands globally
+                synced = await bot.tree.sync()
+                logger.info(f"Synced {len(synced)} command(s) globally!")
 
-            logger.info("Available commands:")
-            for command in bot.tree.get_commands():
-                logger.info(f"  /{command.name}")
+                logger.info("Available commands:")
+                for command in bot.tree.get_commands():
+                    logger.info(f"  /{command.name}")
+            except Exception as sync_error:
+                logger.error(f"Failed to sync commands: {str(sync_error)}")
+                logger.warning("Bot will continue to run, but slash commands may not work.")
 
         # Start sales monitoring - continue regardless of command syncing
         bot.loop.create_task(monitor_sales(bot))
     except Exception as e:
-        logger.error(f"Failed to sync commands: {str(e)}")
+        logger.error(f"Error in on_ready: {str(e)}")
 
 
 @bot.tree.error
