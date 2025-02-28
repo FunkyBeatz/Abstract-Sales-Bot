@@ -6,6 +6,7 @@ import os
 import asyncio
 from utils.sales_posting import monitor_sales
 import logging
+import aiohttp  # For checking Discord API status
 
 # Set up logging to both file and console with a clean format
 logging.basicConfig(filename='./data/logs/bot.log',
@@ -69,6 +70,19 @@ async def load_commands():
                 logger.error(f"Failed to load {filename}: {str(e)}")
 
 
+async def check_discord_api_status():
+    """Check Discord API status to debug potential issues."""
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get('https://discord.com/api/v10') as response:
+                if response.status == 200:
+                    logger.info("Discord API is reachable")
+                else:
+                    logger.error(f"Discord API status: {response.status}")
+        except Exception as e:
+            logger.error(f"Failed to check Discord API status: {str(e)}")
+
+
 @bot.event
 async def on_ready():
     try:
@@ -90,9 +104,12 @@ async def on_ready():
 
         logger.info(f"Bot tree initialized: {bot.tree}")
 
-        # Attempt to sync commands with retry logic
-        max_retries = 3
-        retry_delay = 5  # seconds
+        # Check Discord API status before syncing
+        await check_discord_api_status()
+
+        # Attempt to sync commands with extended retry logic
+        max_retries = 5  # Increased retries
+        retry_delay = 10  # Increased delay for stability
         for attempt in range(max_retries):
             try:
                 logger.debug(
@@ -105,9 +122,34 @@ async def on_ready():
                 synced = await bot.tree.sync()
                 logger.info(f"Synced {len(synced)} command(s) globally!")
                 break
+            except TypeError as e:
+                if "NoneType" in str(e):
+                    logger.error(
+                        f"Sync failed due to NoneType (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                    )
+                else:
+                    logger.error(
+                        f"Sync failed (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                    )
+                if attempt < max_retries - 1:
+                    logger.info(
+                        f"Retrying command sync in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise
+            except discord.errors.HTTPException as e:
+                logger.error(
+                    f"Discord HTTP error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    logger.info(
+                        f"Retrying command sync in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise
             except Exception as e:
                 logger.error(
-                    f"Failed to sync commands (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                    f"Unexpected error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}"
                 )
                 if attempt < max_retries - 1:
                     logger.info(
