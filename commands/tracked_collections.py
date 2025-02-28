@@ -1,3 +1,4 @@
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -117,5 +118,8 @@ class TrackedCollections(commands.Cog):
             logger.error(f"Error in tracked_collections command: {str(e)}")
             await interaction.followup.send(
                 "❌ An error occurred while processing the command.",
-                ephemeral=Trueasync def setup(bot):
-    await bot.add_cog(TrackedCollections(bot))ot))
+                ephemeral=True)
+
+
+async def setup(bot):
+    await bot.add_cog(TrackedCollections(bot))
