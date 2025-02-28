@@ -1,4 +1,3 @@
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -17,112 +16,74 @@ logger = logging.getLogger(__name__)
 DATA_FILE = "./data/tracked_collections.json"
 lock = asyncio.Lock()  # Thread-safe file access
 
-
 class TrackedCollections(commands.Cog):
-
     def __init__(self, bot):
         self.bot = bot
 
     @app_commands.command(
         name="tracked_collections",
-        description="Show all currently tracked Abstract NFT collections")
-    @app_commands.checks.cooldown(1, 5.0)  # 1 use every 5 seconds
+        description="Shows all currently tracked Abstract NFT collections")
     async def tracked_collections(self, interaction: discord.Interaction):
-        """Show a list of all tracked Abstract NFT collections with basic stats.
+        await interaction.response.defer(ephemeral=True)
 
-        Displays an embed with each tracked collection's address, channel, sales threshold, and placeholder data for floor price, volume, sales, etc. Note: Some metrics (e.g., floor price, volume) are placeholders and require a data source (e.g., Magic Eden API) for real values.
-
-        Args:
-            interaction: The Discord interaction triggering the command.
-        """
         try:
-            await interaction.response.defer(ephemeral=True)
+            if not os.path.exists(DATA_FILE):
+                await interaction.followup.send(
+                    "No collections are currently being tracked.", ephemeral=True)
+                return
 
-            async with lock:  # Use lock for thread-safe JSON access
-                # Load tracked_collections
-                tracked_collections = {}
-                if os.path.exists(DATA_FILE):
-                    try:
-                        with open(DATA_FILE, "r") as file:
-                            content = file.read().strip()
-                            if content:
-                                tracked_collections = json.load(file)
-                                logger.info(
-                                    f"Loaded tracked_collections.json for /tracked_collections: {tracked_collections}"
-                                )
-                            else:
-                                tracked_collections = {"abstract": {}}
-                                logger.warning(
-                                    f"tracked_collections.json is empty for /tracked_collections"
-                                )
-                    except json.JSONDecodeError as e:
-                        logger.error(
-                            f"Invalid JSON in {DATA_FILE} for /tracked_collections: {e}"
-                        )
-                        tracked_collections = {"abstract": {}}
-                else:
-                    tracked_collections = {"abstract": {}}
-                    logger.warning(
-                        f"tracked_collections.json does not exist for /tracked_collections"
-                    )
+            async with lock:
+                with open(DATA_FILE, 'r') as f:
+                    data = json.load(f)
 
-                # Get Abstract collections
-                abstract_collections = tracked_collections.get("abstract", {})
-                if not abstract_collections:
-                    await interaction.followup.send(
-                        "❌ No collections are currently being tracked on Abstract.",
-                        ephemeral=True)
-                    logger.warning(
-                        "No collections tracked on Abstract for /tracked_collections"
-                    )
-                    return
+            abstract_collections = data.get("abstract", {})
 
-                # Build embed with tracked collections and placeholder data
+            if not abstract_collections:
+                await interaction.followup.send(
+                    "No Abstract collections are currently being tracked.", 
+                    ephemeral=True)
+                return
+
+            try:
                 embed = discord.Embed(title="Tracked Abstract NFT Collections",
                                       color=discord.Color.blue(),
                                       timestamp=discord.utils.utcnow())
-                
-                # Safely access bot user properties
-                footer_text = "*Metrics are placeholders; real data pending API.*"
+
+                # Safe footer handling
+                footer_text = "Tracked collections | *Metrics are placeholders; real data pending API.*"
                 if self.bot and self.bot.user:
                     footer_text = f"Tracked by {self.bot.user.name} | {footer_text}"
-                    icon_url = self.bot.user.avatar.url if self.bot.user.avatar else None
-                    embed.set_footer(text=footer_text, icon_url=icon_url)
-                else:
-                    embed.set_footer(text=footer_text)
+
+                embed.set_footer(text=footer_text)
 
                 for collection_address, data in abstract_collections.items():
                     channel_id = data.get("channel_id")
                     channel = None
-                    
-                    # Only try to get channel if bot is properly initialized
-                    if self.bot and hasattr(self.bot, "get_channel") and channel_id:
+
+                    if self.bot and channel_id:
                         channel = self.bot.get_channel(channel_id)
-                        
-                    channel_mention = channel.mention if channel else f"Channel ID {channel_id} (not found)"
 
-                    # Placeholder data (replace with real data if available later)
+                    channel_mention = f"<#{channel_id}>" if channel_id else "No channel set"
+
+                    # Collection data display
                     embed.add_field(
-                        name=
-                        f"Collection: {collection_address[:6]}...{collection_address[-4:]}",
-                        value=f"""
-                        **Channel**: {channel_mention}
-                        **Sales Threshold**: {data['sales_threshold']}
-                        **Floor Price**: Not available (e.g., 1.5 ABS, +2%)
-                        **24h Volume**: Not available (e.g., 10 ABS)
-                        **24h Sales**: Not available (e.g., 5 sales)
-                        **1h Sales**: Not available (e.g., 1 sale)
-                        **Avg Sale**: Not available (e.g., 2 ABS)
-                        **Listed/Supply**: Not available (e.g., 100/1000)
-                        **Listed %**: Not available (e.g., 10%)
-                        **Owners %**: Not available (e.g., 80%)
-                        """,
-                        inline=False)
+                        name=f"Collection: {data.get('name', 'Unknown')}",
+                        value=f"• **Address**: `{collection_address}`\n"
+                              f"• **Channel**: {channel_mention}\n"
+                              f"• **Floor Price**: {data.get('floor_price', 'N/A')} ABS\n"
+                              f"• **Last Sale**: {data.get('last_sale', 'N/A')} ABS\n"
+                              f"• **Sales Today**: {data.get('sales_today', 0)}\n"
+                              f"• **Volume Today**: {data.get('volume_today', 0)} ABS",
+                        inline=False
+                    )
 
-                await interaction.followup.send(embed=embed)
-                logger.info(
-                    f"Displayed tracked collections for /tracked_collections: {list(abstract_collections.keys())}"
-                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+
+            except Exception as e:
+                logger.error(f"Error in tracked_collections command: {str(e)}")
+                await interaction.followup.send(
+                    "❌ An error occurred while processing the command.",
+                    ephemeral=True)
 
         except Exception as e:
             logger.error(f"Error in tracked_collections command: {str(e)}")
