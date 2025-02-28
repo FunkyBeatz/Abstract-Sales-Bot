@@ -8,12 +8,10 @@ from utils.sales_posting import monitor_sales
 import logging
 
 # Set up logging to both file and console with a clean format
-logging.basicConfig(
-    filename='./data/logs/bot.log',
-    level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'  # Match timestamp format in your screenshot
-)
+logging.basicConfig(filename='./data/logs/bot.log',
+                    level=logging.INFO,
+                    format='%(asctime)s %(levelname)s: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
 # Configure discord.py logging to show purple messages in console
@@ -40,6 +38,11 @@ intents.message_content = True
 intents.guilds = True
 intents.guild_messages = True
 
+# Ensure application_id is set
+if not config.APPLICATION_ID:
+    raise ValueError(
+        "APPLICATION_ID is not set in Replit Secrets or config.py")
+
 bot = commands.Bot(command_prefix='!',
                    intents=intents,
                    application_id=config.APPLICATION_ID)
@@ -59,7 +62,14 @@ async def load_commands():
 @bot.event
 async def on_ready():
     try:
-        # Clear global commands before syncing (optional, use cautiously for multi-server bots)
+        # Debug: Check if bot.tree is initialized
+        if bot.tree is None:
+            logger.error(
+                "ApplicationCommandTree is None; check APPLICATION_ID and BOT_TOKEN"
+            )
+            raise ValueError("Bot command tree is not initialized")
+
+        # Clear global commands before syncing
         await bot.tree.clear_commands(guild=None)
         # Sync commands globally
         synced = await bot.tree.sync()
