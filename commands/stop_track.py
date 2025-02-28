@@ -16,11 +16,11 @@ class StopSale(commands.Cog):
 
     @app_commands.command(
         name="stop_track",
-        description="Stop tracking NFT sales for a collection")
+        description="Stop tracking NFT sales for an Abstract collection")
     @app_commands.checks.cooldown(1, 2.0)  # 1 use every 2 seconds
     async def stop_track(self, interaction: discord.Interaction,
-                         blockchain: str, collection_address: str):
-        """Command to stop tracking an NFT collection"""
+                         collection_address: str):
+        """Command to stop tracking an Abstract NFT collection"""
         try:
             await interaction.response.defer(ephemeral=True)
 
@@ -28,33 +28,41 @@ class StopSale(commands.Cog):
             os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
 
             async with lock:  # Use lock for thread-safe JSON access
-                # Load existing data
+                # Load or initialize tracked_collections
                 tracked_collections = {}
                 if os.path.exists(DATA_FILE):
-                    with open(DATA_FILE, "r") as file:
-                        tracked_collections = json.load(file)
+                    try:
+                        with open(DATA_FILE, "r") as file:
+                            content = file.read().strip()
+                            if content:  # Check if file has content
+                                tracked_collections = json.load(file)
+                            else:
+                                # File is empty, initialize with default structure
+                                tracked_collections = {"abstract": {}}
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Invalid JSON in {DATA_FILE}: {e}")
+                        # Initialize with default structure if JSON is corrupted
+                        tracked_collections = {"abstract": {}}
                 else:
-                    await interaction.followup.send(
-                        "❌ No tracked collections found.", ephemeral=True)
-                    return
+                    # File doesn’t exist, initialize with default structure
+                    tracked_collections = {"abstract": {}}
 
-                # Check if the collection is being tracked
-                blockchain = blockchain.lower()
+                # Check if the collection is being tracked on Abstract
                 collection_address = collection_address.lower()
-                if blockchain in tracked_collections and collection_address in tracked_collections[
-                        blockchain]:
-                    del tracked_collections[blockchain][collection_address]
+                if "abstract" in tracked_collections and collection_address in tracked_collections[
+                        "abstract"]:
+                    del tracked_collections["abstract"][collection_address]
 
                     # Save updated data
                     with open(DATA_FILE, "w") as file:
                         json.dump(tracked_collections, file, indent=4)
 
                     await interaction.followup.send(
-                        f"✅ Stopped tracking **{collection_address}** on **{blockchain}**.",
+                        f"✅ Stopped tracking **{collection_address}** on Abstract.",
                         ephemeral=True)
                 else:
                     await interaction.followup.send(
-                        f"❌ Could not find tracking for **{collection_address}** on **{blockchain}**.",
+                        f"❌ Could not find tracking for **{collection_address}** on Abstract.",
                         ephemeral=True)
         except Exception as e:
             print(f"Error in stop_track: {e}")
