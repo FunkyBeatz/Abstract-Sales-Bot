@@ -59,10 +59,10 @@ except ValueError as e:
     raise ValueError("APPLICATION_ID must be a valid integer") from e
 
 
-# Load all commands from /commands folder
+# Load all commands from /commands folder, skipping tracked_collections.py
 async def load_commands():
     for filename in os.listdir("./commands"):
-        if filename.endswith(".py"):
+        if filename.endswith(".py") and filename != "tracked_collections.py":
             try:
                 await bot.load_extension(f"commands.{filename[:-3]}")
                 logger.info(f"Loaded {filename}")
@@ -107,7 +107,7 @@ async def on_ready():
         # Check Discord API status before syncing
         await check_discord_api_status()
 
-        # Attempt to sync commands with extended retry logic
+        # Attempt to sync commands with extended retry logic and 403 handling
         max_retries = 5  # Increased retries
         retry_delay = 10  # Increased delay for stability
         for attempt in range(max_retries):
@@ -120,8 +120,35 @@ async def on_ready():
                     f"Attempting to sync commands globally (attempt {attempt + 1}/{max_retries})"
                 )
                 synced = await bot.tree.sync()
+                if synced is None:
+                    raise ValueError(
+                        "Command sync returned None; check permissions and scopes"
+                    )
                 logger.info(f"Synced {len(synced)} command(s) globally!")
                 break
+            except discord.errors.HTTPException as e:
+                if e.status == 403:
+                    logger.error(
+                        f"Discord HTTP 403 Forbidden during sync (attempt {attempt + 1}/{max_retries}): Bot lacks 'applications.commands' scope or permissions. Check OAuth2 invite and server permissions."
+                    )
+                elif e.status == 401:
+                    logger.error(
+                        f"Discord HTTP 401 Unauthorized during sync (attempt {attempt + 1}/{max_retries}): Invalid BOT_TOKEN. Check Replit Secrets."
+                    )
+                elif e.status == 429:
+                    logger.error(
+                        f"Discord HTTP 429 Too Many Requests during sync (attempt {attempt + 1}/{max_retries}): Rate limited. Retrying..."
+                    )
+                else:
+                    logger.error(
+                        f"Discord HTTP error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                    )
+                if attempt < max_retries - 1:
+                    logger.info(
+                        f"Retrying command sync in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise
             except TypeError as e:
                 if "NoneType" in str(e):
                     logger.error(
@@ -131,16 +158,6 @@ async def on_ready():
                     logger.error(
                         f"Sync failed (attempt {attempt + 1}/{max_retries}): {str(e)}"
                     )
-                if attempt < max_retries - 1:
-                    logger.info(
-                        f"Retrying command sync in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
-                else:
-                    raise
-            except discord.errors.HTTPException as e:
-                logger.error(
-                    f"Discord HTTP error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}"
-                )
                 if attempt < max_retries - 1:
                     logger.info(
                         f"Retrying command sync in {retry_delay} seconds...")
