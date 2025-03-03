@@ -223,6 +223,19 @@ async def on_app_command_error(interaction: discord.Interaction,
 async def main():
     max_retries = 5
     retry_delay = 5  # seconds
+    
+    # Validate token first
+    if not config.BOT_TOKEN:
+        logger.critical("BOT_TOKEN is missing. Please add it to your Replit Secrets.")
+        print("\n⚠️ ERROR: BOT_TOKEN is missing! Please add your Discord bot token to Replit Secrets.\n")
+        return
+    
+    # Check if token looks valid (basic format check)
+    if len(config.BOT_TOKEN) < 50 or "." not in config.BOT_TOKEN:
+        logger.critical("BOT_TOKEN appears to be invalid (wrong format).")
+        print("\n⚠️ ERROR: BOT_TOKEN appears to be invalid. Token should be longer and contain periods.\n")
+        print("Please check your Discord Developer Portal and ensure you've copied the entire token correctly.")
+        return
 
     for attempt in range(max_retries):
         try:
@@ -231,17 +244,28 @@ async def main():
                 logger.info(
                     f"Connecting to Discord... (Attempt {attempt + 1}/{max_retries})"
                 )
+                print(f"\nAttempting to connect to Discord... (Attempt {attempt + 1}/{max_retries})")
                 await bot.start(config.BOT_TOKEN)
+        except discord.errors.LoginFailure as e:
+            logger.critical(f"Authentication failed: {str(e)}")
+            print(f"\n❌ AUTHENTICATION FAILED: {str(e)}")
+            print("Your bot token is invalid. Please generate a new token in the Discord Developer Portal.")
+            print("Then update it in your Replit Secrets with the key 'DISCORD_BOT_TOKEN'")
+            return  # Stop retrying on auth failure
         except discord.errors.HTTPException as e:
             logger.error(f"Discord HTTP Error: {str(e)}")
+            print(f"\n⚠️ Discord API Error: {str(e)}")
             if attempt < max_retries - 1:
                 logger.info(f"Retrying in {retry_delay} seconds...")
+                print(f"Retrying in {retry_delay} seconds...")
                 await asyncio.sleep(retry_delay)
             continue
         except KeyboardInterrupt:
             logger.info("Shutting down...")
+            print("Shutting down...")
         except Exception as e:
             logger.error(f"Fatal error: {str(e)}")
+            print(f"\n❌ Fatal error: {str(e)}")
         finally:
             if bot.is_ready():
                 await bot.close()
