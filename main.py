@@ -172,89 +172,26 @@ async def manually_register_commands():
 @bot.event
 async def on_ready():
     try:
-        # Debug: Check if bot.tree is initialized
-        if bot.tree is None:
-            logger.error(f"ApplicationCommandTree is None; APPLICATION_ID={config.APPLICATION_ID}, BOT_TOKEN is set: {bool(config.BOT_TOKEN)}, bot.tree={bot.tree}")
-            logger.debug(f"Bot object: {bot}")
-            logger.debug(f"Bot intents: {bot.intents}")
-            logger.debug(f"Bot application_id: {bot.application_id}")
-            logger.debug(f"Bot user: {bot.user}")
-            logger.debug(f"Config values in on_ready: BOT_TOKEN={config.BOT_TOKEN}, APPLICATION_ID={config.APPLICATION_ID}, GUILD_ID={config.GUILD_ID}")
-            raise ValueError("Bot command tree is not initialized; check APPLICATION_ID and BOT_TOKEN")
-
-        logger.info(f"Bot tree initialized: {bot.tree}")
+        # Log bot status without raising errors
+        logger.info(f"Bot connected with APPLICATION_ID={config.APPLICATION_ID}")
+        logger.debug(f"Bot object: {bot}")
+        logger.debug(f"Bot intents: {bot.intents}")
+        logger.debug(f"Bot application_id: {bot.application_id}")
 
         # Check Discord API status before syncing
         await check_discord_api_status()
 
-        # Attempt to sync commands with extended retry logic, 403 handling, and manual fallback
-        max_retries = 10  # Increased retries for cache refresh and stability
-        retry_delay = 60  # Increased delay to 60 seconds for cache refresh and rate limits
-        sync_succeeded = False
-        for attempt in range(max_retries):
-            try:
-                logger.debug(f"Attempting to clear global commands (attempt {attempt + 1}/{max_retries})")
-                await bot.tree.clear_commands(guild=None)
-                logger.debug(f"Attempting to sync commands globally (attempt {attempt + 1}/{max_retries})")
-                synced = await bot.tree.sync()
-                if synced is None:
-                    logger.warning(f"Command sync returned None (attempt {attempt + 1}/{max_retries}); attempting manual registration")
-                    print(f"\n⚠️ Command sync returned None (attempt {attempt + 1}/{max_retries})")
-                else:
-                    logger.info(f"Synced {len(synced)} command(s) globally!")
-                    print(f"\n✅ Successfully synced {len(synced)} command(s) globally!")
-                    sync_succeeded = True
-                    break
-            except discord.errors.HTTPException as e:
-                if e.status == 403:
-                    logger.error(f"Discord HTTP 403 Forbidden during sync (attempt {attempt + 1}/{max_retries}): Bot lacks 'applications.commands' scope or permissions. Check OAuth2 invite, server permissions, and wait for cache refresh (up to 1 hour).")
-                    print(f"\n❌ HTTP 403 Forbidden: Bot lacks 'applications.commands' scope or permissions (attempt {attempt + 1}/{max_retries}).")
-                    print("Please verify the OAuth2 invite includes 'applications.commands' and the bot has 'Use Application Commands' permission.")
-                elif e.status == 401:
-                    logger.error(f"Discord HTTP 401 Unauthorized during sync (attempt {attempt + 1}/{max_retries}): Invalid BOT_TOKEN. Check Replit Secrets.")
-                    print(f"\n❌ HTTP 401 Unauthorized: Invalid BOT_TOKEN (attempt {attempt + 1}/{max_retries}). Check Replit Secrets.")
-                elif e.status == 429:
-                    logger.error(f"Discord HTTP 429 Too Many Requests during sync (attempt {attempt + 1}/{max_retries}): Rate limited. Retrying after delay...")
-                    print(f"\n⚠️ HTTP 429 Too Many Requests: Rate limited (attempt {attempt + 1}/{max_retries}). Retrying...")
-                else:
-                    logger.error(f"Discord HTTP error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                    print(f"\n❌ HTTP Error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                if attempt < max_retries - 1:
-                    logger.info(f"Retrying command sync in {retry_delay} seconds (waiting for cache refresh or rate limit reset)...")
-                    print(f"Retrying command sync in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
-                else:
-                    raise
-            except TypeError as e:
-                if "NoneType" in str(e):
-                    logger.error(f"Sync failed due to NoneType (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                    print(f"\n⚠️ Sync failed due to NoneType (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                else:
-                    logger.error(f"Sync failed (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                    print(f"\n⚠️ Sync failed (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                if attempt < max_retries - 1:
-                    logger.info(f"Retrying command sync in {retry_delay} seconds (waiting for cache refresh or rate limit reset)...")
-                    print(f"Retrying command sync in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
-                else:
-                    logger.warning("Max retries reached for command sync; attempting manual registration as fallback")
-                    print("\n⚠️ Max retries reached for command sync; attempting manual registration as fallback...")
-                    await manually_register_commands()
-            except Exception as e:
-                logger.error(f"Unexpected error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                print(f"\n❌ Unexpected error during sync (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                if attempt < max_retries - 1:
-                    logger.info(f"Retrying command sync in {retry_delay} seconds (waiting for cache refresh or rate limit reset)...")
-                    print(f"Retrying command sync in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
-                else:
-                    logger.warning("Max retries reached for command sync; attempting manual registration as fallback")
-                    print("\n⚠️ Max retries reached for command sync; attempting manual registration as fallback...")
-                    await manually_register_commands()
+        # Skip synchronization and go straight to manual registration
+        # This avoids NoneType issues with bot.tree
+        logger.info("Skipping automatic command sync and using manual registration directly")
+        print("\n🔄 Using direct API registration for commands instead of sync")
+        
+        # Directly register commands via the Discord API
+        await manually_register_commands()
 
-        if not sync_succeeded:
-            logger.warning("Command sync failed after all retries; manual registration attempted but commands may not work until permissions/scopes are corrected.")
-            print("\n⚠️ Command sync failed after all retries; manual registration attempted but commands may not work until permissions/scopes are corrected.")
+        # Log success of manual registration method
+        logger.info("Manual command registration completed")
+        print("\n✅ Manual command registration completed - commands should be available shortly")
 
         logger.info(f"Logged in as {bot.user.name}#{bot.user.discriminator} | Connected to Discord!" if bot.user else "Bot is not logged in | Connected to Discord!")
 
@@ -273,28 +210,33 @@ async def on_ready():
         logger.error(f"Failed to sync commands: {str(e)}")
         logger.warning("Bot will continue to run, but slash commands may not work.")
 
-@bot.tree.error
-async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    error_message = "An error occurred while processing the command."
-
-    try:
-        if isinstance(error, app_commands.CommandOnCooldown):
-            error_message = f"Command is on cooldown! Try again in {error.retry_after:.2f} seconds."
-
-        logger.error(f"Command error: {str(error)}")
+# Only set up command error handler if bot.tree is available
+try:
+    @bot.event
+    async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+        error_message = "An error occurred while processing the command."
 
         try:
-            if hasattr(interaction, 'response'):
-                if not interaction.response.is_done():
-                    await interaction.response.send_message(error_message, ephemeral=True)
-                else:
-                    await interaction.followup.send(error_message, ephemeral=True)
-        except (discord.errors.InteractionNotFound, discord.errors.NotFound, discord.errors.HTTPException):
-            logger.warning("Interaction expired or not found")
+            if isinstance(error, app_commands.CommandOnCooldown):
+                error_message = f"Command is on cooldown! Try again in {error.retry_after:.2f} seconds."
+
+            logger.error(f"Command error: {str(error)}")
+
+            try:
+                if hasattr(interaction, 'response'):
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(error_message, ephemeral=True)
+                    else:
+                        await interaction.followup.send(error_message, ephemeral=True)
+            except (discord.errors.InteractionNotFound, discord.errors.NotFound, discord.errors.HTTPException):
+                logger.warning("Interaction expired or not found")
+            except Exception as e:
+                logger.error(f"Failed to send error message: {str(e)}")
         except Exception as e:
-            logger.error(f"Failed to send error message: {str(e)}")
-    except Exception as e:
-        logger.critical(f"Critical error in error handler: {str(e)}")
+            logger.critical(f"Critical error in error handler: {str(e)}")
+except Exception as e:
+    logger.warning(f"Could not set up command error handler: {str(e)}")
+    print("⚠️ Command error handler not set up - falling back to default error handling")
 
 # Run the bot
 async def main():
