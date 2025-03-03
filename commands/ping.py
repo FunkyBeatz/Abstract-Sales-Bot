@@ -10,61 +10,29 @@ logging.basicConfig(filename='./data/logs/bot.log',
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-
-class PingCommand(commands.Cog):
-
-    def __init__(self, bot):
+class Ping(commands.Cog):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="ping",
-                          description="Check if the bot is online")
-    @app_commands.checks.cooldown(1, 1.0)  # 1 use every second
+    @app_commands.command(name="ping", description="Check if the bot is responsive")
     async def ping(self, interaction: discord.Interaction):
-        """Sends a ping response with bot latency and status."""
+        """Simple ping command to check bot responsiveness"""
         try:
-            # Check if interaction is still valid
-            if not hasattr(interaction,
-                           'response') or interaction.response.is_done():
-                logger.warning(
-                    "Interaction expired or invalid for ping command")
-                return
+            # Calculate bot latency
+            latency = round(self.bot.latency * 1000)
+            logger.info(f"Ping command used by {interaction.user} with latency {latency}ms")
 
-            await interaction.response.defer(ephemeral=True)
-
-            # Get and round latency to milliseconds
-            latency = round(self.bot.latency *
-                            1000) if self.bot.latency is not None else -1
-            if latency < 0:
-                status = "🔴"
-                latency_message = "Unknown (bot latency unavailable)"
-            else:
-                status = "🟢" if latency < 1000 else "🟡" if latency < 3000 else "🔴"
-                latency_message = f"`{latency}ms`"
-
-            # Send response with status and latency
-            await interaction.followup.send(
-                f"{status} Pong! Bot latency: {latency_message}",
-                ephemeral=True)
-            logger.info(
-                f"Ping command used by {interaction.user} (ID: {interaction.user.id}) - Latency: {latency_message}"
+            await interaction.response.send_message(
+                f"🏓 Pong! Bot latency is {latency}ms", 
+                ephemeral=True
             )
-        except discord.errors.InteractionResponded:
-            logger.warning("Interaction already responded for ping command")
         except Exception as e:
             logger.error(f"Error in ping command: {str(e)}")
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message(
-                        "An error occurred while processing the command.",
-                        ephemeral=True)
-                else:
-                    await interaction.followup.send(
-                        "An error occurred while processing the command.",
-                        ephemeral=True)
-            except Exception as follow_up_error:
-                logger.error(
-                    f"Failed to send error message: {str(follow_up_error)}")
+            await interaction.response.send_message(
+                "❌ Something went wrong processing your request.", 
+                ephemeral=True
+            )
 
-
-async def setup(bot):
-    await bot.add_cog(PingCommand(bot))
+async def setup(bot: commands.Bot):
+    await bot.add_cog(Ping(bot))
+    logger.info("Ping command loaded")

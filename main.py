@@ -103,7 +103,25 @@ async def on_ready():
             )
 
         logger.info(f"Bot tree initialized: {bot.tree}")
-
+        
+        # Generate proper invite link with needed scopes
+        invite_url = discord.utils.oauth_url(
+            client_id=bot.application_id,
+            permissions=discord.Permissions(
+                send_messages=True,
+                read_messages=True,
+                embed_links=True,
+                attach_files=True,
+                read_message_history=True,
+                use_application_commands=True
+            ),
+            scopes=["bot", "applications.commands"]
+        )
+        print(f"\n✅ Bot is ready! Connected as {bot.user.name}#{bot.user.discriminator}")
+        print(f"\n⚠️ If slash commands aren't working, try reinviting the bot with this URL:")
+        print(f"\n{invite_url}\n")
+        print(f"This URL includes the 'applications.commands' scope which is required for slash commands.")
+        
         # Check Discord API status before syncing
         await check_discord_api_status()
 
@@ -121,6 +139,7 @@ async def on_ready():
                 )
                 synced = await bot.tree.sync()
                 if synced is None:
+                    logger.error("Command sync returned None; check permissions and scopes")
                     raise ValueError(
                         "Command sync returned None; check permissions and scopes"
                     )
