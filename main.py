@@ -156,12 +156,20 @@ async def on_ready():
                 logger.debug(
                     f"Attempting to sync commands globally (attempt {attempt + 1}/{max_retries})"
                 )
-                synced = await bot.tree.sync()
-                
-                if not synced:
-                    logger.warning("Command sync returned empty results; attempting manual command registration")
-                    print("\n⚠️ Command syncing through discord.py returned empty results")
-                    print("Attempting manual command registration as fallback...")
+                try:
+                    synced = await bot.tree.sync()
+                    
+                    if not synced:
+                        logger.warning("Command sync returned empty results; attempting manual command registration")
+                        print("\n⚠️ Command syncing through discord.py returned empty results")
+                        print("Attempting manual command registration as fallback...")
+                except TypeError as e:
+                    if "NoneType" in str(e):
+                        logger.warning("Command sync returned None; attempting manual command registration")
+                        print("\n⚠️ Command sync through discord.py returned None")
+                        print("Attempting manual command registration as fallback...")
+                        # Set synced to empty list to continue with manual registration
+                        synced = []
                     
                     # Try to manually register the ping command via the API
                     try:
@@ -176,6 +184,9 @@ async def on_ready():
                                 "type": 1  # CHAT_INPUT
                             }
                             url = f'https://discord.com/api/v10/applications/{config.APPLICATION_ID}/commands'
+                            
+                            print(f"Manually registering command via API to: {url}")
+                            print(f"Using command data: {command_data}")
                             
                             async with session.post(url, headers=headers, json=command_data) as response:
                                 if response.status == 200 or response.status == 201:
