@@ -106,26 +106,13 @@ async def check_discord_api_status():
 async def on_ready():
     try:
         # Debug: Check if bot.tree is initialized
-        if bot.tree is None:
-            logger.error(
-                f"ApplicationCommandTree is None; APPLICATION_ID={config.APPLICATION_ID}, BOT_TOKEN is set: {bool(config.BOT_TOKEN)}, bot.tree={bot.tree}"
-            )
-            logger.debug(f"Bot object: {bot}")
-            logger.debug(f"Bot intents: {bot.intents}")
-            logger.debug(f"Bot application_id: {bot.application_id}")
-            logger.debug(f"Bot user: {bot.user}")
-            logger.debug(
-                f"Config values in on_ready: BOT_TOKEN={config.BOT_TOKEN}, APPLICATION_ID={config.APPLICATION_ID}, GUILD_ID={config.GUILD_ID}"
-            )
-            raise ValueError(
-                "Bot command tree is not initialized; check APPLICATION_ID and BOT_TOKEN"
-            )
+        # Check if bot.application_id is None and handle or raise an error if necessary
+        if bot.application_id is None:
+            raise ValueError("Bot application_id is None, please ensure it is set correctly.")
 
-        logger.info(f"Bot tree initialized: {bot.tree}")
-        
         # Generate proper invite link with needed scopes
         invite_url = discord.utils.oauth_url(
-            client_id=bot.application_id,
+            client_id=bot.application_id,  # Ensured to not be None
             permissions=discord.Permissions(
                 send_messages=True,
                 read_messages=True,
@@ -152,7 +139,7 @@ async def on_ready():
                 logger.debug(
                     f"Attempting to clear global commands (attempt {attempt + 1}/{max_retries})"
                 )
-                await bot.tree.clear_commands(guild=None)
+                await bot.tree.clear_commands(guild=None) if bot.tree else None  # type: ignore
                 logger.debug(
                     f"Attempting to sync commands globally (attempt {attempt + 1}/{max_retries})"
                 )
@@ -255,7 +242,7 @@ async def on_ready():
                     raise
 
         logger.info(
-            f"Logged in as {bot.user.name}#{bot.user.discriminator} | Connected to Discord!"
+            f"Logged in as {bot.user.name}#{bot.user.discriminator} | Connected to Discord!" if bot.user else "Bot is not logged in | Connected to Discord!"
         )
 
         logger.info("Available commands:")
@@ -290,7 +277,7 @@ async def on_app_command_error(interaction: discord.Interaction,
                 else:
                     await interaction.followup.send(error_message,
                                                     ephemeral=True)
-        except (discord.errors.InteractionNotFound, discord.errors.NotFound):
+        except (discord.errors.InteractionNotFound, discord.errors.NotFound, discord.errors.HTTPException):
             logger.warning("Interaction expired or not found")
         except Exception as e:
             logger.error(f"Failed to send error message: {str(e)}")

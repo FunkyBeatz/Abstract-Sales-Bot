@@ -25,7 +25,7 @@ class Sync(commands.Cog):
             await ctx.send("Attempting to force sync commands...")
             
             # Clear and sync commands
-            await self.bot.tree.clear_commands(guild=None)
+            self.bot.tree.clear_commands(guild=None)
             
             try:
                 synced = await self.bot.tree.sync()
