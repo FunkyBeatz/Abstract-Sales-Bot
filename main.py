@@ -74,13 +74,32 @@ async def check_discord_api_status():
     """Check Discord API status to debug potential issues."""
     async with aiohttp.ClientSession() as session:
         try:
+            # Check basic API connectivity
             async with session.get('https://discord.com/api/v10') as response:
                 if response.status == 200:
                     logger.info("Discord API is reachable")
                 else:
                     logger.error(f"Discord API status: {response.status}")
+                    
+            # Check application commands endpoint with the bot token
+            headers = {'Authorization': f'Bot {config.BOT_TOKEN}'}
+            async with session.get(f'https://discord.com/api/v10/applications/{config.APPLICATION_ID}/commands', headers=headers) as response:
+                if response.status == 200:
+                    commands = await response.json()
+                    logger.info(f"Bot has {len(commands)} global commands registered")
+                    print(f"\n✅ Bot has {len(commands)} global commands registered on Discord's servers")
+                    if len(commands) > 0:
+                        print("Global commands found:")
+                        for cmd in commands:
+                            print(f" - /{cmd['name']}")
+                    else:
+                        print("No global commands found. Command sync may be failing.")
+                else:
+                    logger.error(f"Commands API status: {response.status}")
+                    print(f"\n❌ Failed to check global commands: HTTP {response.status}")
         except Exception as e:
             logger.error(f"Failed to check Discord API status: {str(e)}")
+            print(f"\n❌ API connection error: {str(e)}")
 
 
 @bot.event
@@ -138,12 +157,42 @@ async def on_ready():
                     f"Attempting to sync commands globally (attempt {attempt + 1}/{max_retries})"
                 )
                 synced = await bot.tree.sync()
-                if synced is None:
-                    logger.error("Command sync returned None; check permissions and scopes")
-                    raise ValueError(
-                        "Command sync returned None; check permissions and scopes"
-                    )
-                logger.info(f"Synced {len(synced)} command(s) globally!")
+                
+                if not synced:
+                    logger.warning("Command sync returned empty results; attempting manual command registration")
+                    print("\n⚠️ Command syncing through discord.py returned empty results")
+                    print("Attempting manual command registration as fallback...")
+                    
+                    # Try to manually register the ping command via the API
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            headers = {
+                                'Authorization': f'Bot {config.BOT_TOKEN}',
+                                'Content-Type': 'application/json'
+                            }
+                            command_data = {
+                                "name": "ping",
+                                "description": "Check if the bot is responsive",
+                                "type": 1  # CHAT_INPUT
+                            }
+                            url = f'https://discord.com/api/v10/applications/{config.APPLICATION_ID}/commands'
+                            
+                            async with session.post(url, headers=headers, json=command_data) as response:
+                                if response.status == 200 or response.status == 201:
+                                    result = await response.json()
+                                    logger.info(f"Manually registered ping command: {result['name']}")
+                                    print(f"✅ Successfully registered ping command manually!")
+                                else:
+                                    error_text = await response.text()
+                                    logger.error(f"Manual command registration failed: {response.status} - {error_text}")
+                                    print(f"❌ Manual registration failed: HTTP {response.status}")
+                                    print(f"   Error: {error_text}")
+                    except Exception as e:
+                        logger.error(f"Failed manual command registration: {str(e)}")
+                        print(f"❌ Error during manual registration: {str(e)}")
+                else:
+                    logger.info(f"Synced {len(synced)} command(s) globally!")
+                    print(f"\n✅ Successfully synced {len(synced)} command(s) globally!")
                 break
             except discord.errors.HTTPException as e:
                 if e.status == 403:
@@ -248,6 +297,13 @@ async def main():
         logger.critical("BOT_TOKEN is missing. Please add it to your Replit Secrets.")
         print("\n⚠️ ERROR: BOT_TOKEN is missing! Please add your Discord bot token to Replit Secrets.\n")
         return
+        
+    # Print important bot info on startup
+    print("\n====== DISCORD BOT CONFIGURATION ======")
+    print(f"APPLICATION_ID: {config.APPLICATION_ID}")
+    print(f"GUILD_ID: {config.GUILD_ID or 'Not set (using global commands)'}")
+    print(f"BOT_TOKEN: {'✓ Set (hidden for security)' if config.BOT_TOKEN else '✗ Missing'}")
+    print("======================================\n")
     
     # Check if token looks valid (basic format check)
     if len(config.BOT_TOKEN) < 50 or "." not in config.BOT_TOKEN:
