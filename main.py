@@ -106,13 +106,13 @@ async def check_discord_api_status():
 async def on_ready():
     try:
         # Debug: Check if bot.tree is initialized
-        # Check if bot.application_id is None and handle or raise an error if necessary
-        if bot.application_id is None:
-            raise ValueError("Bot application_id is None, please ensure it is set correctly.")
+        # Use bot.application_id if available, otherwise fall back to config.APPLICATION_ID
+        client_id = bot.application_id if bot.application_id is not None else config.APPLICATION_ID
+        logger.debug(f"Using client_id for oauth_url: {client_id}")
 
         # Generate proper invite link with needed scopes
         invite_url = discord.utils.oauth_url(
-            client_id=bot.application_id,  # Ensured to not be None
+            client_id=client_id,  # Using the safely defined client_id
             permissions=discord.Permissions(
                 send_messages=True,
                 read_messages=True,
